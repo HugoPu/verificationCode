@@ -1,20 +1,21 @@
 from gen_captcha import gen_captcha_text_and_image
 from gen_captcha import number
-from gen_captcha import alphabet
-from gen_captcha import ALPHABET
 
 import time
 import numpy as np
 import tensorflow as tf
 
-text, image = gen_captcha_text_and_image()
-print("verification code iamge channel:", image.shape)  # (60, 160, 3)
+# 验证码最长N字符; 如果验证码长度小于N，用'_'补齐
+MAX_CAPTCHA = 6
+MIN_CAPTCHA = 5
+print("Max number of label:", MAX_CAPTCHA)
+
 # 图像大小
 IMAGE_HEIGHT = 60
 IMAGE_WIDTH = 160
-MAX_CAPTCHA = len(text)
-print("Max number of label:", MAX_CAPTCHA)  # 验证码最长4字符; 我全部固定为4,可以不固定. 如果验证码长度小于4，用'_'补齐
 
+text, image = gen_captcha_text_and_image(MAX_CAPTCHA, MIN_CAPTCHA)
+print("verification code iamge channel:", image.shape)  # (60, 160, 3)
 
 # 把彩色图像转为灰度图像（色彩对识别验证码没有什么用）
 def convert2gray(img):
@@ -34,14 +35,14 @@ np.pad(image,((2,3),(2,2)), 'constant', constant_values=(255,))  # 在图像上�
 """
 
 # 文本转向量
-char_set = number + alphabet + ALPHABET + ['_']  # 如果验证码长度小于4, '_'用来补齐
+char_set = number + ['_']  # 如果验证码长度小于N, '_'用来补齐
 CHAR_SET_LEN = len(char_set)
 
 
 def text2vec(text):
     text_len = len(text)
     if text_len > MAX_CAPTCHA:
-        raise ValueError('验证码最长4个字符')
+        raise ValueError('验证码最长N个字符')
 
     vector = np.zeros(MAX_CAPTCHA * CHAR_SET_LEN)
 
@@ -69,15 +70,10 @@ def vec2text(vec):
     char_pos = vec.nonzero()[0]
     text = []
     for i, c in enumerate(char_pos):
-        char_at_pos = i  # c/63
         char_idx = c % CHAR_SET_LEN
         if char_idx < 10:
             char_code = char_idx + ord('0')
-        elif char_idx < 36:
-            char_code = char_idx - 10 + ord('A')
-        elif char_idx < 62:
-            char_code = char_idx - 36 + ord('a')
-        elif char_idx == 62:
+        elif char_idx == 10:
             char_code = ord('_')
         else:
             raise ValueError('error')
@@ -104,7 +100,7 @@ def get_next_batch(batch_size=128):
     # 有时生成图像大小不是(60, 160, 3)
     def wrap_gen_captcha_text_and_image():
         while True:
-            text, image = gen_captcha_text_and_image()
+            text, image = gen_captcha_text_and_image(MAX_CAPTCHA, MIN_CAPTCHA)
             if image.shape == (60, 160, 3):
                 return text, image
 
