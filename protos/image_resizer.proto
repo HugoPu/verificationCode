@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package protos;
+
+message ImageResizer {
+  oneof image_resizer_oneof {
+    FixedShapeResizer fixed_shape_resizer = 1;
+  }
+}
+
+enum ResizeType {
+  BILINEAR = 0;
+  NEAREST_NEIGHBOR = 1;
+  BICUBIC = 2;
+  AREA = 3;
+}
+
+message FixedShapeResizer {
+  int32 height = 1;
+  int32 width = 2;
+  ResizeType resize_type = 3;
+  bool convert_to_grayscale = 4;
+}

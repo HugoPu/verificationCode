@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import random
+from skimage.filters import threshold_local
 
 # 验证码中的字符, 就不用汉字了
 number = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -30,6 +31,13 @@ def gen_captcha_text_and_image(max_captcha, min_captcha):
     captcha_image = Image.open(captcha)
     captcha_image = np.array(captcha_image)
     return captcha_text, captcha_image
+
+def read_real_test_and_image(path):
+    image = Image.open(path)
+    image_np = np.array(image)
+
+    thresh = threshold_local(image_np, block_size=35)
+    binary = image_np > thresh
 
 
 if __name__ == '__main__':

@@ -1,7 +1,5 @@
 from gen_captcha import gen_captcha_text_and_image
 from gen_captcha import number
-from gen_captcha import alphabet
-from gen_captcha import ALPHABET
 
 import time
 import numpy as np
@@ -33,7 +31,7 @@ np.pad(image,((2,3),(2,2)), 'constant', constant_values=(255,))  # 在图像上�
 """
 
 # 文本转向量
-char_set = number + alphabet + ALPHABET + ['_']  # 如果验证码长度小于4, '_'用来补齐
+char_set = number + ['_']  # 如果验证码长度小于4, '_'用来补齐
 CHAR_SET_LEN = len(char_set)
 
 

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protos;
+
+import "protos/model.proto";
+import "protos/train.proto";
+
+message TrainEvalPipelineConfig {
+  Model model = 1;
+  TrainConfig train_config = 2;
+}

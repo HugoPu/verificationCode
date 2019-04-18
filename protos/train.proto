@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package protos;
+
+message TrainConfig  {
+  int32 batch_size = 1;
+  float lr = 2;
+  int32 num_steps = 3;
+  float dropout = 4;
+}

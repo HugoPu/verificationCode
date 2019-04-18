@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package protos;
+
+import "protos/image_resizer.proto";
+
+message Cnn  {
+  ImageResizer image_resizer = 1;
+  repeated string chars = 2;
+}

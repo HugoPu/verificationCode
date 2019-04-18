@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protos;
+
+import "protos/cnn.proto";
+
+message Model  {
+  oneof model {
+    Cnn cnn = 1;
+  }
+}

@@ -7,26 +7,22 @@ import tensorflow as tf
 
 # 验证码最长N字符; 如果验证码长度小于N，用'_'补齐
 MAX_CAPTCHA = 6
-MIN_CAPTCHA = 5
+MIN_CAPTCHA = 6
 print("Max number of label:", MAX_CAPTCHA)
 
 # 图像大小
 IMAGE_HEIGHT = 60
 IMAGE_WIDTH = 160
 
+BATCH_SIZE = 128
+EPOCH_SIZE = 50000
+
+EVAL_PER_STEPS = 100
+
 text, image = gen_captcha_text_and_image(MAX_CAPTCHA, MIN_CAPTCHA)
 print("verification code iamge channel:", image.shape)  # (60, 160, 3)
 
-# 把彩色图像转为灰度图像（色彩对识别验证码没有什么用）
-def convert2gray(img):
-    if len(img.shape) > 2:
-        gray = np.mean(img, -1)
-        # 上面的转法较快，正规转法如下
-        # r, g, b = img[:,:,0], img[:,:,1], img[:,:,2]
-        # gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
-        return gray
-    else:
-        return img
+
 
 
 """
@@ -39,30 +35,7 @@ char_set = number + ['_']  # 如果验证码长度小于N, '_'用来补齐
 CHAR_SET_LEN = len(char_set)
 
 
-def text2vec(text):
-    text_len = len(text)
-    if text_len > MAX_CAPTCHA:
-        raise ValueError('验证码最长N个字符')
 
-    vector = np.zeros(MAX_CAPTCHA * CHAR_SET_LEN)
-
-    def char2pos(c):
-        if c == '_':
-            k = 62
-            return k
-        k = ord(c) - 48
-        if k > 9:
-            k = ord(c) - 55
-            if k > 35:
-                k = ord(c) - 61
-                if k > 61:
-                    raise ValueError('No Map')
-        return k
-
-    for i, c in enumerate(text):
-        idx = i * CHAR_SET_LEN + char2pos(c)
-        vector[idx] = 1
-    return vector
 
 
 # 向量转回文本
@@ -92,26 +65,7 @@ print(text)  # SFd5
 """
 
 
-# 生成一个训练batch
-def get_next_batch(batch_size=128):
-    batch_x = np.zeros([batch_size, IMAGE_HEIGHT * IMAGE_WIDTH])
-    batch_y = np.zeros([batch_size, MAX_CAPTCHA * CHAR_SET_LEN])
 
-    # 有时生成图像大小不是(60, 160, 3)
-    def wrap_gen_captcha_text_and_image():
-        while True:
-            text, image = gen_captcha_text_and_image(MAX_CAPTCHA, MIN_CAPTCHA)
-            if image.shape == (60, 160, 3):
-                return text, image
-
-    for i in range(batch_size):
-        text, image = wrap_gen_captcha_text_and_image()
-        image = convert2gray(image)
-
-        batch_x[i, :] = image.flatten() / 255  # (image.flatten()-128)/128  mean为0
-        batch_y[i, :] = text2vec(text)
-
-    return batch_x, batch_y
 
 
 ####################################################################
@@ -199,22 +153,23 @@ def train_crack_captcha_cnn():
 
         step = 0
         while True:
-            batch_x, batch_y = get_next_batch(64)
+            batch_x, batch_y = get_next_batch(BATCH_SIZE)
             _, loss_ = sess.run([optimizer, loss], feed_dict={X: batch_x, Y: batch_y, keep_prob: 0.75})
             print(step, loss_)
+            saver.save(sess, "model", global_step=500)
 
             # writer.add_summary(summary,step)
             # 每100 step计算一次准确率
             if step % 100 == 0:
-                batch_x_test, batch_y_test = get_next_batch(100)
+                batch_x_test, batch_y_test = get_next_batch(EVAL_PER_STEPS)
                 summary, acc = sess.run([merged, accuracy], feed_dict={X: batch_x_test, Y: batch_y_test, keep_prob: 1.})
                 print(step, acc)
 
                 writer.add_summary(summary, step)
 
                 # 如果准确率大于50%,保存模型,完成训练
-                if step == 7000:
-                    saver.save(sess, ".\crack_capcha.model", global_step=step)
+                if step == EPOCH_SIZE:
+
                     break
 
             step += 1
