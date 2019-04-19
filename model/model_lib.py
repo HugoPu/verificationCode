@@ -5,7 +5,8 @@ import tensorflow as tf
 import inputs
 
 from utils import config_utils
-from builders import model_builder
+from builders import model_builder, optimizer_builder
+from core import standard_fields as fields
 
 MODEL_BUILD_UTIL_MAP = {
     'get_configs_from_pipeline_file':config_utils.get_configs_from_pipeline_file,
@@ -17,15 +18,98 @@ MODEL_BUILD_UTIL_MAP = {
 }
 
 
-def create_model_fn(features, labels, mode, params=None):
-    params = params or {}
-    total_loss, train_op, export_outputs = None, None, None
-    is_training = mode == tf.estimator.ModeKeys.TRAIN
+def create_model_fn(init_model_fn, configs, hparams, scaffold):
+    train_config = configs['train_config']
+    eval_input_config = configs['eval_input_config']
+    eval_config = configs['eval_config']
 
-    tf.keras.backend.set_learning_phase(is_training)
 
-    def model_fn(features, labels, params=None):
-        return
+    def model_fn(features, labels, mode, params=None):
+        params = params or {}
+        total_loss, train_op, predictions, export_outputs = None, None, None, None
+        is_training = mode == tf.estimator.ModeKeys.TRAIN
+        model = init_model_fn(is_training=is_training, add_summaries=True)
+        scaffold = None
+
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            pass
+
+
+
+        preprocessed_images = features[fields.InputDataFields.image]
+        prediction_dict = model.predict(
+            preprocessed_images,
+            features[fields.InputDataFields.true_image_shape])
+
+        if mode in (tf.estimator.ModeKeys.TRAIN, tf.estimator.ModeKeys.EVAL):
+            total_loss = model.loss(
+                prediction_dict,
+                features[fields.InputDataFields.true_image_shape])
+            global_step = tf.train.get_or_create_global_step()
+            training_optimizer, optimizer_summayr_vars = optimizer_builder.build(
+                train_config.optimizer)
+
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            trainable_variable = None
+            include_variables = None
+            exclude_variables = None
+            # include_variables = (
+            #     train_config.update_trainable_variables
+            #     if train_config.update_trainable_variables else None)
+            # exclude_variables = (
+            #     train_config.freeze_variables
+            #     if train_config.freeze_variables else None)
+            trainable_variables = tf.contrib.framework.filter_variables(
+                tf.trainable_variables(),
+                include_pattern=include_variables,
+                exclude_patterns=exclude_variables)
+
+            clip_gradients_value = None
+            if train_config.gradient_clipping_by_norm > 0:
+                clip_gradients_value = train_config.gradient_clipping_by_norm
+
+            if train_config.summarize_gradients:
+                summaries = ['gradients', 'gradient_norm', 'global_gradient_norm']
+            train_op = tf.contrib.layers.optimize_loss(
+                loss=total_loss,
+                global_step=global_step,
+                learning_range=None,
+                clip_gradients=clip_gradients_value,
+                optimizer=training_optimizer,
+                update_ops=model.updates(),
+                variables=trainable_variables,
+                summaries=summaries,
+                name='')
+
+        if mode == tf.estimator.ModeKeys.EVAL:
+            eval_metric_ops = eval_tuil.get
+
+        def postprocess_wrapper(args):
+            return model.postprocess(args[0], args[1])
+
+        if mode in (tf.estimator.ModeKeys.EVAL, tf.estimator.ModeKeys.PREDICT):
+            predictions = postprocess_wrapper((
+                prediction_dict,
+                features[fields.InputDataFields.true_image_shape]))
+
+        if scaffold is None:
+            keep_checkpoint_every_n_hours = (
+                train_config.keep_checkpoint_every_n_hours)
+            saver = tf.train.Saver(
+                sharded=True,
+                keep_checkpoint_every_n_hours=keep_checkpoint_every_n_hours,
+                save_relative_paths=True)
+            tf.add_to_collection(tf.GraphKeys.SAVERS, saver)
+            scaffold = tf.train.Scaffold(saver=saver)
+
+        return tf.estimator.EstimatorSpec(
+            mode=mode,
+            predictions=predictions,
+            loss=total_loss,
+            train_op=train_op,
+            eval_metric_ops=eval_metric_ops,
+            export_outputs=export_outputs,
+            scaffold=scaffold)
     return
 
 def create_estimator_and_inputs(run_config,
@@ -72,7 +156,7 @@ def create_estimator_and_inputs(run_config,
         model_config=model_config
     )
     predict_input_fn = create_predict_input_fn(
-        predict_input_config=predit_input_config,
+        predict_input_config=eval_input_config,
         model_config=model_config,
     )
 

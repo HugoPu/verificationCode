@@ -3,5 +3,4 @@ syntax = "proto3";
 package protos;
 
 message EvalConfig {
-  int32 num_steps_per_eval = 1;
 }

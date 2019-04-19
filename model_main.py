@@ -7,7 +7,7 @@ flags = tf.flags
 tf.logging.set_verbosity(tf.logging.INFO)
 
 flags.DEFINE_string(
-    'model_dir', '/sdb/hugo/PythonWorkspace/models/research/object_detection/output', 'Path to output model directory '
+    'model_dir', '/sdb/hugo/PythonWorkspace/verificationCode/output', 'Path to output model directory '
     'where event and checkpoint files will be written.')
 flags.DEFINE_string('pipeline_config_path', '/sdb/hugo/PythonWorkspace/verificationCode/hparams/pipeline.config', 'Path to pipeline config '
                     'file.')

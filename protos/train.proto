@@ -7,4 +7,8 @@ message TrainConfig  {
   float lr = 2;
   int32 num_steps = 3;
   float dropout = 4;
+  float real_data_percent = 5;
+  int32 max_num_chars = 6;
+  int32 min_num_chars = 7;
+  repeated string chars = 8;
 }

@@ -4,14 +4,10 @@ package protos;
 
 message InputReader {
   bool shuffle = 1;
-  oneof image_input_reader{
+  oneof input_reader{
     ImageInputReader image_input_reader = 2;
   }
   uint32 num_parallel_batches = 3;
-  float real_data_percent = 4;
-  int32 max_num_chars = 5;
-  int32 min_num_chars = 6;
-  repeated string chars = 7;
   int32 num_prefetch_batches = 8;
 }
 
