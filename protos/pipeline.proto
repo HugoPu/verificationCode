@@ -6,6 +6,7 @@ import "protos/model.proto";
 import "protos/train.proto";
 import "protos/eval.proto";
 import "protos/input_reader.proto";
+import "protos/data_generator.proto";
 
 message TrainEvalPipelineConfig {
   Model model = 1;
@@ -13,4 +14,6 @@ message TrainEvalPipelineConfig {
   InputReader train_input_reader = 3;
   InputReader eval_input_reader = 4;
   EvalConfig eval_config = 5;
+  DataGenerator train_data_generator = 6;
+  DataGenerator eval_data_generator = 7;
 }

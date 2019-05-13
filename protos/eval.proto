@@ -3,4 +3,5 @@ syntax = "proto3";
 package protos;
 
 message EvalConfig {
+  uint32 batch_size = 1;
 }

@@ -26,7 +26,9 @@ def create_configs_from_pipeline_proto(pipeline_config):
     configs["train_config"] = pipeline_config.train_config
     configs["train_input_config"] = pipeline_config.train_input_reader
     configs["eval_config"] = pipeline_config.eval_config
-    configs["eval_input_configs"] = pipeline_config.eval_input_reader
+    configs["eval_input_config"] = pipeline_config.eval_input_reader
+    configs['train_data_generator_config'] = pipeline_config.train_data_generator
+    configs['eval_data_generator_config'] = pipeline_config.eval_data_generator
     # if configs["eval_input_configs"]:
     #     configs["eval_input_configs"] = configs["eval_input_configs"][0]
     # if pipeline_config.HasField("graph_rewriter"):

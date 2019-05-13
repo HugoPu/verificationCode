@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package protos;
+
+message DataGenerator{
+  float real_data_percent = 1;
+  int32 max_num_chars = 2;
+  int32 min_num_chars = 3;
+  repeated string chars = 4;
+  bool is_generate_captcha = 5;
+  string src_real_path = 6;
+  string src_captcha_path = 7;
+  string output_path = 8;
+}

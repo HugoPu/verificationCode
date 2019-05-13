@@ -18,6 +18,6 @@ enum ResizeType {
 message FixedShapeResizer {
   int32 height = 1;
   int32 width = 2;
-  ResizeType resize_type = 3;
+  ResizeType resize_method = 3;
   bool convert_to_grayscale = 4;
 }

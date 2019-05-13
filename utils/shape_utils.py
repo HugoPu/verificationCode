@@ -38,8 +38,6 @@ def static_or_dynamic_map_fn(fn, elems, dtype=None,
         return tf.stack(outputs)
     else:
         if all([isinstance(output, list) for output in outputs]):
-            if all([
-                all([isinstance(entry, tf.Tensor) for entry in output_list])
-                for output_list in outputs]):
+            if all([all([isinstance(entry, tf.Tensor) for entry in output_list]) for output_list in outputs]):
                 return [tf.stack(output_tuple) for output_tuple in zip(*outputs)]
     raise ValueError()

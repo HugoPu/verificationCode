@@ -1,11 +1,11 @@
 import functools
 import tensorflow as tf
 
-from protos import train_pb2
-from builders import dataset_builder, model_builder
+from protos import train_pb2, eval_pb2
+from builders import dataset_builder, model_builder, image_resizer_builder
 from utils import config_utils
 from core import standard_fields as fields
-from builders import image_resizer_builder
+from data_decoders import tf_example_decoder
 
 SERVING_FED_EXAMPLE_KEY = 'serialized_example'
 
@@ -17,6 +17,8 @@ def _get_features_dict(input_dict):
     features = {
         fields.InputDataFields.image:
             input_dict[fields.InputDataFields.image],
+        fields.InputDataFields.true_image_shape:
+            input_dict[fields.InputDataFields.true_image_shape],
     }
 
     return features
@@ -53,7 +55,7 @@ def create_train_input_fn(train_config, train_input_config, model_config):
             image_resizer_fn = image_resizer_builder.build(image_resizer_config)
             transform_data_fn = functools.partial(
                 transform_input_data,
-                mode_preprocess_fn=model.preprocess,
+                model_preprocess_fn=model.preprocess,
                 image_resizer_fn=image_resizer_fn)
 
             tensor_dict = transform_data_fn(tensor_dict)
@@ -62,7 +64,7 @@ def create_train_input_fn(train_config, train_input_config, model_config):
 
         dataset = INPUT_BUILDER_UTIL_MAP['dataset_build'](
             train_input_config,
-            trainsform_input_data_fn=transform_and_pad_input_data_fn,
+            transform_input_data_fn=transform_and_pad_input_data_fn,
             batch_size=params['batch_size'] if params else train_config.batch_size
         )
 
@@ -71,7 +73,8 @@ def create_train_input_fn(train_config, train_input_config, model_config):
 
 def create_eval_input_fn(eval_config, eval_input_config, model_config):
     def _eval_input_fn(params=None):
-        if not isinstance(eval_config, train_pb2.TrainConfig):
+        params = params or {}
+        if not isinstance(eval_config, eval_pb2.EvalConfig):
             raise ValueError()
         def transform_and_pad_input_data_fn(tensor_dict):
             model = model_builder.build(model_config, is_training=False)
@@ -80,7 +83,7 @@ def create_eval_input_fn(eval_config, eval_input_config, model_config):
 
             transform_data_fn = functools.partial(
                 transform_input_data,
-                model_preprocess=model.preprocess,
+                model_preprocess_fn=model.preprocess,
                 image_resizer_fn=image_resizer_fn)
 
             tensor_dict = transform_data_fn(tensor_dict)
@@ -88,7 +91,7 @@ def create_eval_input_fn(eval_config, eval_input_config, model_config):
 
         dataset = INPUT_BUILDER_UTIL_MAP['dataset_build'](
             eval_input_config,
-            trainsform_input_data_fn=transform_and_pad_input_data_fn,
+            transform_input_data_fn=transform_and_pad_input_data_fn,
             batch_size=params['batch_size'] if params else eval_config.batch_size
         )
 
@@ -105,12 +108,15 @@ def create_predict_input_fn(model_config, predict_input_config):
 
         transform_fn = functools.partial(
             transform_input_data,
-            mode_preprocess_fn=model.preprocess(),
+            model_preprocess_fn=model.preprocess,
             image_resizer_fn=image_resizer_fn)
 
-        input_dict = transform_fn(example)
+        decoder = tf_example_decoder.TfExampleDecoder()
+        input_dict = transform_fn(decoder.decode(example))
         images = tf.to_float(input_dict[fields.InputDataFields.image])
-        true_image_shape = input_dict[fields.InputDataFields.true_image_shape]
+        images = tf.expand_dims(images, axis=0)
+        true_image_shape = tf.expand_dims(
+            input_dict[fields.InputDataFields.true_image_shape], axis=0)
 
         return tf.estimator.export.ServingInputReceiver(features={
             fields.InputDataFields.image:images,

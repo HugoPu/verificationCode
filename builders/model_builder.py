@@ -15,4 +15,6 @@ def _build_cnn_model(cnn_config, is_training, add_summaries):
     image_resizer_fn = image_resizer_builder.build(cnn_config.image_resizer)
     cnn_meta_arch_fn = cnn_meta_arch.CnnMetaArch
     return cnn_meta_arch_fn(
-        image_resizer_fn=image_resizer_fn)
+        is_training=is_training,
+        image_resizer_fn=image_resizer_fn,
+        config=cnn_config)

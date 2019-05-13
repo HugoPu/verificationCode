@@ -7,4 +7,8 @@ import "protos/image_resizer.proto";
 message Cnn  {
   ImageResizer image_resizer = 1;
   repeated string chars = 2;
+  float w_alpha =3;
+  float b_alpha = 4;
+  float keep_prob = 5;
+  uint32 num_chars = 6;
 }

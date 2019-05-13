@@ -69,7 +69,7 @@ def get_next_batch(batch_size, IMAGE_HEIGHT, ):
     return batch_x, batch_y
 
 # 生成字符对应的验证码
-def gen_captcha_text_and_image(max_captcha, min_captcha):
+def  gen_captcha_text_and_image(max_captcha, min_captcha):
     image = ImageCaptcha()
 
     captcha_text = random_captcha_text(max_captcha, min_captcha)

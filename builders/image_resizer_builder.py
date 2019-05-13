@@ -31,5 +31,18 @@ def build(image_resizer_config):
             method=method)
         if not fixed_shape_resizer_config.convert_to_grayscale:
             return image_resizer_fn
+
     else:
         raise ValueError()
+
+    def grayscale_image_resizer(image, masks=None):
+        retval = image_resizer_fn(image, masks)
+        resized_image = retval[0]
+        resized_image_shape = retval[-1]
+        retval[0] = preprocessor.rgb_to_gray(resized_image)
+        retval[-1] = tf.concat([resized_image_shape[:-1], [1]], 0)
+        return retval
+
+    return functools.partial(grayscale_image_resizer)
+
+

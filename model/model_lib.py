@@ -1,10 +1,10 @@
-
+import copy
 import functools
 import tensorflow as tf
 
 import inputs
 
-from utils import config_utils
+from utils import config_utils, eval_utils
 from builders import model_builder, optimizer_builder
 from core import standard_fields as fields
 
@@ -18,7 +18,7 @@ MODEL_BUILD_UTIL_MAP = {
 }
 
 
-def create_model_fn(init_model_fn, configs, hparams, scaffold):
+def create_model_fn(init_model_fn, configs, hparams):
     train_config = configs['train_config']
     eval_input_config = configs['eval_input_config']
     eval_config = configs['eval_config']
@@ -31,73 +31,57 @@ def create_model_fn(init_model_fn, configs, hparams, scaffold):
         model = init_model_fn(is_training=is_training, add_summaries=True)
         scaffold = None
 
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            pass
-
-
-
         preprocessed_images = features[fields.InputDataFields.image]
-        prediction_dict = model.predict(
-            preprocessed_images,
-            features[fields.InputDataFields.true_image_shape])
+        tf.logging.info('msg:{}'.format(preprocessed_images))
+        predictions = model.predict(preprocessed_images)
 
         if mode in (tf.estimator.ModeKeys.TRAIN, tf.estimator.ModeKeys.EVAL):
             total_loss = model.loss(
-                prediction_dict,
-                features[fields.InputDataFields.true_image_shape])
+                predictions,
+                labels[fields.InputDataFields.label])
             global_step = tf.train.get_or_create_global_step()
-            training_optimizer, optimizer_summayr_vars = optimizer_builder.build(
-                train_config.optimizer)
+            training_optimizer, optimizer_summayr_vars = optimizer_builder.build()
 
         if mode == tf.estimator.ModeKeys.TRAIN:
-            trainable_variable = None
-            include_variables = None
-            exclude_variables = None
-            # include_variables = (
-            #     train_config.update_trainable_variables
-            #     if train_config.update_trainable_variables else None)
-            # exclude_variables = (
-            #     train_config.freeze_variables
-            #     if train_config.freeze_variables else None)
-            trainable_variables = tf.contrib.framework.filter_variables(
-                tf.trainable_variables(),
-                include_pattern=include_variables,
-                exclude_patterns=exclude_variables)
 
-            clip_gradients_value = None
-            if train_config.gradient_clipping_by_norm > 0:
-                clip_gradients_value = train_config.gradient_clipping_by_norm
+            for var in optimizer_summayr_vars:
+                tf.summary.scalar(var.op.name, var)
 
-            if train_config.summarize_gradients:
-                summaries = ['gradients', 'gradient_norm', 'global_gradient_norm']
             train_op = tf.contrib.layers.optimize_loss(
                 loss=total_loss,
                 global_step=global_step,
-                learning_range=None,
-                clip_gradients=clip_gradients_value,
-                optimizer=training_optimizer,
-                update_ops=model.updates(),
-                variables=trainable_variables,
-                summaries=summaries,
+                # learning_rate=None,
+                learning_rate=0.001,
+                # clip_gradients=clip_gradients_value,
+                # optimizer=training_optimizer,
+                optimizer='Adam',
+                # update_ops=model.updates(),
+                # variables=trainable_variables,
+                # summaries=summaries,
                 name='')
 
-        if mode == tf.estimator.ModeKeys.EVAL:
-            eval_metric_ops = eval_tuil.get
-
-        def postprocess_wrapper(args):
-            return model.postprocess(args[0], args[1])
+        def postprocess_wrapper(predictions):
+            return model.format_label(predictions)
 
         if mode in (tf.estimator.ModeKeys.EVAL, tf.estimator.ModeKeys.PREDICT):
-            predictions = postprocess_wrapper((
-                prediction_dict,
-                features[fields.InputDataFields.true_image_shape]))
+            predictions = postprocess_wrapper(predictions)
+
+        eval_metric_ops = None
+        if mode == tf.estimator.ModeKeys.EVAL:
+            eval_metric_ops = eval_utils.get_eval_metric_ops_for_evaluatiors(
+                eval_config,
+                model.format_label(predictions),
+                model.format_label(labels[fields.InputDataFields.label]))
+
+            # for var in optimizer_summayr_vars:
+            #     eval_metric_ops[var.op.name] = (var, tf.no_op())
 
         if scaffold is None:
-            keep_checkpoint_every_n_hours = (
-                train_config.keep_checkpoint_every_n_hours)
+            # keep_checkpoint_every_n_hours = (
+            #     train_config.keep_checkpoint_every_n_hours)
             saver = tf.train.Saver(
                 sharded=True,
-                keep_checkpoint_every_n_hours=keep_checkpoint_every_n_hours,
+                # keep_checkpoint_every_n_hours=keep_checkpoint_every_n_hours,
                 save_relative_paths=True)
             tf.add_to_collection(tf.GraphKeys.SAVERS, saver)
             scaffold = tf.train.Scaffold(saver=saver)
@@ -110,7 +94,8 @@ def create_model_fn(init_model_fn, configs, hparams, scaffold):
             eval_metric_ops=eval_metric_ops,
             export_outputs=export_outputs,
             scaffold=scaffold)
-    return
+    return model_fn
+
 
 def create_estimator_and_inputs(run_config,
                                 hparams,
@@ -138,7 +123,10 @@ def create_estimator_and_inputs(run_config,
     train_config = configs['train_config']
     train_input_config = configs['train_input_config']
     eval_config = configs['eval_config']
-    eval_input_config = configs['eval_input_configs']
+    eval_on_train_config = copy.deepcopy(train_input_config)
+    eval_input_config = configs['eval_input_config']
+    train_data_generator_config = configs['train_data_generator_config']
+    eval_data_generator_config = configs['eval_data_generator_config']
 
     if train_steps is None and train_config.num_steps !=0:
         train_steps = train_config.num_steps
@@ -155,6 +143,10 @@ def create_estimator_and_inputs(run_config,
         eval_input_config=eval_input_config,
         model_config=model_config
     )
+    eval_on_train_input_fn = create_eval_input_fn(
+        eval_config=eval_config,
+        eval_input_config=eval_on_train_config,
+        model_config=model_config)
     predict_input_fn = create_predict_input_fn(
         predict_input_config=eval_input_config,
         model_config=model_config,
@@ -168,12 +160,15 @@ def create_estimator_and_inputs(run_config,
         estimator=estimator,
         train_input_fn=train_input_fn,
         eval_input_fn=eval_input_fn,
-        predic_input_fn=predict_input_fn,
-        train_steps=train_steps
+        eval_on_train_input_fn=eval_on_train_input_fn,
+        predict_input_fn=predict_input_fn,
+        train_steps=train_steps,
+        train_data_generator_config=train_data_generator_config,
+        eval_data_generator_config=eval_data_generator_config
     )
 
 def create_train_and_eval_specs(train_input_fn,
-                                eval_input_fns,
+                                eval_input_fn,
                                 eval_on_train_input_fn,
                                 predict_input_fn,
                                 train_steps,
@@ -184,27 +179,39 @@ def create_train_and_eval_specs(train_input_fn,
     train_spec = tf.estimator.TrainSpec(
         input_fn=train_input_fn, max_steps=train_steps)
 
-    eval_specs = []
-    for index, (eval_spec_name, eval_input_fn) in \
-            enumerate(zip(eval_spec_names, eval_input_fns)):
-        if index == 0:
-            exporter_name = final_exporter_name
-        else:
-            exporter_name = '{}_{}'.format(final_exporter_name, eval_spec_name)
-        exporter = tf.estimator.FinalExporter(
-            name=exporter_name, serving_input_receiver_fn=predict_input_fn)
-        eval_specs.append(
-            tf.estimator.EvalSpec(
-                name=eval_spec_name,
-                input_fn=eval_input_fn,
-                steps=None,
-                exporters=exporter))
+    # if eval_spec_names is None:
+    #     eval_spec_names = [str(i) for i in range(len(eval_input_fns))]
+    #
+    # eval_specs = []
+    # for index, (eval_spec_name, eval_input_fn) in \
+    #         enumerate(zip(eval_spec_names, eval_input_fns)):
+    #     if index == 0:
+    #         exporter_name = final_exporter_name
+    #     else:
+    #         exporter_name = '{}_{}'.format(final_exporter_name, eval_spec_name)
+    #     exporter = tf.estimator.FinalExporter(
+    #         name=exporter_name, serving_input_receiver_fn=predict_input_fn)
+    #     eval_specs.append(
+    #         tf.estimator.EvalSpec(
+    #             name=eval_spec_name,
+    #             input_fn=eval_input_fn,
+    #             steps=None,
+    #             exporters=exporter))
+
+    exporter_name = final_exporter_name
+    exporter = tf.estimator.FinalExporter(
+        name=exporter_name, serving_input_receiver_fn=predict_input_fn)
+    eval_spec = tf.estimator.EvalSpec(
+            name='eval',
+            input_fn=eval_input_fn,
+            steps=None,
+            exporters=exporter)
 
     if eval_on_train_data:
-        eval_specs.append(
-            tf.estimator.EvalSpec(
-                name='eval_on_train',
-                input_fn=eval_on_train_input_fn,
-                steps=None))
+        eval_spec = tf.estimator.EvalSpec(
+            name='eval_on_train',
+            input_fn=eval_on_train_input_fn,
+            steps=None)
 
-    return train_spec, eval_specs
+
+    return train_spec, eval_spec
